@@ -79,6 +79,7 @@ define('parsley/field', [
 
       // Else, iterate over priorities one by one, and validate related asserts one by one
       for (var i = 0; i < priorities.length; i++)
+
         if (true !== (this.validationResult = this.validateThroughValidator(value, this.constraints, priorities[i])))
           return false;
 
@@ -187,6 +188,10 @@ define('parsley/field', [
         // if constraint already exist, delete it and push new version
         if ('undefined' !== this.constraintsByName[constraint.name])
           this.removeConstraint(constraint.name);
+
+        if(constraint.domElement && this.$element){
+          constraint.domElement(this.$element);
+        }
 
         this.constraints.push(constraint);
         this.constraintsByName[constraint.name] = constraint;
