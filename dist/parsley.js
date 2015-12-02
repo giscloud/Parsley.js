@@ -1,7 +1,7 @@
 /*!
 * Parsleyjs
 * Guillaume Potier - <guillaume@wisembly.com>
-* Version 2.0.0-rc5 - built Sat Mar 29 2014 20:19:11
+* Version 2.0.0-rc5 - built Wed Dec 02 2015 10:55:29
 * MIT Licensed
 *
 */
@@ -81,7 +81,8 @@
         .replace(/([a-z\d])([A-Z])/g, '$1_$2')
         .replace(/_/g, '-')
         .toLowerCase();
-    }
+    },
+    noMessage: "NO_MESSAGE"
   };
 // All these options could be overriden and specified directly in DOM using
 // `data-parsley-` default DOM-API
@@ -173,20 +174,20 @@
 /*!
 * validator.js
 * Guillaume Potier - <guillaume@wisembly.com>
-* Version 0.5.8 - built Sun Mar 16 2014 17:18:21
+* Version 1.2.3 - built Tue Dec 01 2015 18:02:56
 * MIT Licensed
 *
 */
-( function ( exports ) {
+( function ( ) {
+  var exports = {};
   /**
   * Validator
   */
   var Validator = function ( options ) {
     this.__class__ = 'Validator';
-    this.__version__ = '0.5.8';
+    this.__version__ = '1.2.3';
     this.options = options || {};
     this.bindingKey = this.options.bindingKey || '_validatorjsConstraint';
-    return this;
   };
   Validator.prototype = {
     constructor: Validator,
@@ -233,7 +234,7 @@
         if ( ! ( assert[ i ] instanceof Assert) )
           throw new Error( 'You must give an Assert or an Asserts array to validate a string' );
         result = assert[ i ].check( string, group );
-        if ( result instanceof Violation )
+        if ( true !== result )
           failures.push( result );
       }
       return failures.length ? failures : true;
@@ -241,6 +242,8 @@
     _validateObject: function ( object, constraint, group ) {
       if ( 'object' !== typeof constraint )
         throw new Error( 'You must give a constraint to validate an object' );
+      if ( constraint instanceof Assert )
+        return constraint.check( object, group );
       if ( constraint instanceof Constraint )
         return constraint.check( object, group );
       return new Constraint( constraint ).check( object, group );
@@ -269,38 +272,67 @@
         throw new Error( 'Should give a valid mapping object to Constraint', err, data );
       }
     }
-    return this;
   };
   Constraint.prototype = {
     constructor: Constraint,
+    isRequired: function( property, group, deepRequired ) {
+      var constraint = this.get( property );
+      var constraints = _isArray( constraint ) ? constraint : [constraint];
+      for ( var i = constraints.length - 1; i >= 0; i-- ) {
+        constraint = constraints[i];
+        if ( 'Required' === constraint.__class__ ) {
+          if ( constraints[i].requiresValidation( group ) ) {
+            return true;
+          }
+        }
+        if ( deepRequired ) {
+          if ( 'Collection' === constraint.__class__ ) {
+            constraint = constraint.constraint;
+          }
+          if ( constraint instanceof Constraint ) {
+            // ensure constraint of collection gets the same deepRequired option
+            constraint.options.deepRequired = deepRequired;
+            for ( var node in constraint.nodes ) {
+              if ( constraint.isRequired( node, group, deepRequired ) ) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+      return false;
+    },
     check: function ( object, group ) {
       var result, failures = {};
-      // check all constraint nodes if strict validation enabled. Else, only object nodes that have a constraint
-      for ( var property in this.options.strict ? this.nodes : object ) {
-        if ( this.options.strict ? this.has( property, object ) : this.has( property ) ) {
-          result = this._check( property, object[ property ], group );
-          // check returned an array of Violations or an object mapping Violations
-          if ( ( _isArray( result ) && result.length > 0 ) || ( !_isArray( result ) && !_isEmptyObject( result ) ) )
-            failures[ property ] = result;
-        // in strict mode, get a violation for each constraint node not in object
-        } else if ( this.options.strict ) {
-          try {
+      // check all constraint nodes.
+      for ( var property in this.nodes ) {
+        var isRequired = this.isRequired( property, group, this.options.deepRequired );
+        if ( ! this.has( property, object ) && ! this.options.strict && ! isRequired ) {
+          continue;
+        }
+        try {
+          if (! this.has( property, this.options.strict || isRequired ? object : undefined ) ) {
             // we trigger here a HaveProperty Assert violation to have uniform Violation object in the end
             new Assert().HaveProperty( property ).validate( object );
-          } catch ( violation ) {
-            failures[ property ] = violation;
           }
+          result = this._check( property, object[ property ], group );
+          // check returned an array of Violations or an object mapping Violations
+          if ( ( _isArray( result ) && result.length > 0 ) || ( !_isArray( result ) && !_isEmptyObject( result ) ) ) {
+            failures[ property ] = result;
+          }
+        } catch ( violation ) {
+          failures[ property ] = violation;
         }
       }
       return _isEmptyObject(failures) ? true : failures;
     },
     add: function ( node, object ) {
-      if ( object instanceof Assert  || ( _isArray( object ) && object[ 0 ] instanceof Assert ) ) {
+      if ( object instanceof Assert || ( _isArray( object ) && object[ 0 ] instanceof Assert ) ) {
         this.nodes[ node ] = object;
         return this;
       }
       if ( 'object' === typeof object && !_isArray( object ) ) {
-        this.nodes[ node ] = object instanceof Constraint ? object : new Constraint( object );
+        this.nodes[ node ] = object instanceof Constraint ? object : new Constraint( object, this.options );
         return this;
       }
       throw new Error( 'Should give an Assert, an Asserts array, a Constraint', object );
@@ -378,9 +410,12 @@
       return show;
     },
     __toString: function () {
-      if ( 'undefined' !== typeof this.violation )
-        this.violation = '", ' + this.getViolation().constraint + ' expected was ' + this.getViolation().expected;
-      return this.assert.__class__ + ' assert failed for "' + this.value + this.violation || '';
+      var v = '';
+      if ( 'undefined' !== typeof this.violation ) {
+        this.violation = this.getViolation().constraint + ' expected was ' + this.getViolation().expected;
+        v = ", " + this.violation;
+      }
+      return this.assert.__class__ + ' assert failed for "' + this.value + '"' + v;
     },
     getViolation: function () {
       var constraint, expected;
@@ -398,15 +433,47 @@
     this.groups = [];
     if ( 'undefined' !== typeof group )
       this.addGroup( group );
-    return this;
+  };
+  /**
+   * Extend Assert
+   */
+  Assert.extend = function ( asserts ) {
+    if ( 'object' !== typeof asserts )
+      throw new Error( 'Invalid parameter: `asserts` should be an object' );
+    if ( 0 === Object.keys( asserts ).length )
+      throw new Error( 'Invalid parameter: `asserts` should have at least one property' );
+    // Inherit from Assert.
+    function Extended() {
+      Assert.apply( this, arguments );
+    }
+    Extended.prototype = Object.create( Assert.prototype );
+    Extended.prototype.constructor = Extended;
+    // Extend with custom asserts.
+    for ( var key in asserts ) {
+      if ( 'function' !== typeof asserts[ key ] )
+        throw new Error( 'The extension assert must be a function' );
+      Extended.prototype[ key ] = asserts[ key ];
+    }
+    return Extended;
   };
   Assert.prototype = {
     construct: Assert,
-    check: function ( value, group ) {
+    element:null,
+    requiresValidation: function ( group ) {
       if ( group && !this.hasGroup( group ) )
-        return;
+        return false;
       if ( !group && this.hasGroups() )
-        return;
+        return false;
+      return true;
+    },
+    domElement: function (el) {
+      if(el){
+        this.element = el;
+      }
+    },
+    check: function ( value, group ) {
+      if ( !this.requiresValidation( group ) )
+        return true;
       try {
         return this.validate( value, group );
       } catch ( violation ) {
@@ -488,7 +555,13 @@
         throw new Error( 'Callback must be instanciated with a function' );
       this.fn = fn;
       this.validate = function ( value ) {
-        var result = this.fn.apply( this, [ value ].concat( this.arguments ) );
+        var result;
+        try {
+          result = this.fn.apply( this, [ value ].concat( this.arguments ) );
+        }
+        catch(err) {
+          throw new Violation( this, value, { error: err } );
+        }
         if ( true !== result )
           throw new Violation( this, value, { result: result } );
         return true;
@@ -509,13 +582,13 @@
       };
       return this;
     },
-    Collection: function ( constraint ) {
+    Collection: function ( assertOrConstraint ) {
       this.__class__ = 'Collection';
-      this.constraint = 'undefined' !== typeof constraint ? new Constraint( constraint ) : false;
+      this.constraint = _isPlainObject( assertOrConstraint ) ? new Constraint( assertOrConstraint ) : assertOrConstraint;
       this.validate = function ( collection, group ) {
         var result, validator = new Validator(), count = 0, failures = {}, groups = this.groups.length ? this.groups : group;
         if ( !_isArray( collection ) )
-          throw new Violation( this, array, { value: Validator.errorCode.must_be_an_array } );
+          throw new Violation( this, collection, { value: Validator.errorCode.must_be_an_array } );
         for ( var i = 0; i < collection.length; i++ ) {
           result = this.constraint ?
             validator.validate( collection[ i ], this.constraint, groups ) :
@@ -551,19 +624,6 @@
           throw new Violation( this, value, { value: Validator.errorCode.must_be_a_string } );
         if ( !regExp.test( value ) )
           throw new Violation( this, value );
-        return true;
-      };
-      return this;
-    },
-    Eql: function ( eql ) {
-      this.__class__ = 'Eql';
-      if ( 'undefined' === typeof eql )
-        throw new Error( 'Equal must be instanciated with an Array or an Object' );
-      this.eql = eql;
-      this.validate = function ( value ) {
-        var eql = 'function' === typeof this.eql ? this.eql( value ) : this.eql;
-        if ( !expect.eql( eql, value ) )
-          throw new Violation( this, value, { eql: eql } );
         return true;
       };
       return this;
@@ -621,14 +681,11 @@
       };
       return this;
     },
-    IPv4: function () {
-      this.__class__ = 'IPv4';
+    IsString: function () {
+      this.__class__ = 'IsString';
       this.validate = function ( value ) {
-        var regExp = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-        if ( 'string' !== typeof value )
+        if ( !_isString( value ) )
           throw new Violation( this, value, { value: Validator.errorCode.must_be_a_string } );
-        if ( !regExp.test( value ) )
-          throw new Violation( this, value );
         return true;
       };
       return this;
@@ -636,9 +693,9 @@
     Length: function ( boundaries ) {
       this.__class__ = 'Length';
       if ( !boundaries.min && !boundaries.max )
-        throw new Error( 'Lenth assert must be instanciated with a { min: x, max: y } object' );
-      this.min = boundaries.min;
-      this.max = boundaries.max;
+        throw new Error( 'Length assert must be instanciated with a { min: x, max: y } object' );
+      this.min = parseInt(boundaries.min);
+      this.max = parseInt(boundaries.max);
       this.validate = function ( value ) {
         if ( 'string' !== typeof value && !_isArray( value ) )
           throw new Violation( this, value, { value: Validator.errorCode.must_be_a_string_or_array } );
@@ -680,18 +737,6 @@
       };
       return this;
     },
-    Mac: function () {
-      this.__class__ = 'Mac';
-      this.validate = function ( value ) {
-        var regExp = /^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/i;
-        if ( 'string' !== typeof value )
-          throw new Violation( this, value, { value: Validator.errorCode.must_be_a_string } );
-        if ( !regExp.test( value ) )
-          throw new Violation( this, value );
-        return true;
-      };
-      return this;
-    },
     NotNull: function () {
       this.__class__ = 'NotNull';
       this.validate = function ( value ) {
@@ -708,6 +753,19 @@
           throw new Violation( this, value, { value: Validator.errorCode.must_be_a_string } );
         if ( '' === value.replace( /^\s+/g, '' ).replace( /\s+$/g, '' ) )
           throw new Violation( this, value );
+        return true;
+      };
+      return this;
+    },
+    NotEqualTo: function ( reference ) {
+      this.__class__ = 'NotEqualTo';
+      if ( 'undefined' === typeof reference )
+        throw new Error( 'NotEqualTo must be instanciated with a value or a function' );
+      this.reference = reference;
+      this.validate = function ( value ) {
+        var reference = 'function' === typeof this.reference ? this.reference( value ) : this.reference;
+        if ( reference === value )
+          throw new Violation( this, value, { value: reference } );
         return true;
       };
       return this;
@@ -748,7 +806,7 @@
       if ( 'undefined' === typeof regexp )
         throw new Error( 'You must give a regexp' );
       this.regexp = regexp;
-      this.flag = flag || '';
+      this.flag = flag;
       this.validate = function ( value ) {
         if ( 'string' !== typeof value )
           throw new Violation( this, value, { value: Validator.errorCode.must_be_a_string } );
@@ -809,7 +867,7 @@
   // https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/Array/indexOf
   if (!Array.prototype.indexOf)
     Array.prototype.indexOf = function (searchElement /*, fromIndex */ ) {
-        
+        "use strict";
         if (this === null) {
             throw new TypeError();
         }
@@ -847,75 +905,25 @@
   var _isArray = function ( obj ) {
     return Object.prototype.toString.call( obj ) === '[object Array]';
   };
-  // https://github.com/LearnBoost/expect.js/blob/master/expect.js
-  var expect = {
-    eql: function ( actual, expected ) {
-      if ( actual === expected ) {
-        return true;
-      } else if ( 'undefined' !== typeof Buffer && Buffer.isBuffer( actual ) && Buffer.isBuffer( expected ) ) {
-        if ( actual.length !== expected.length ) return false;
-        for ( var i = 0; i < actual.length; i++ )
-          if ( actual[i] !== expected[i] ) return false;
-        return true;
-      } else if ( actual instanceof Date && expected instanceof Date ) {
-        return actual.getTime() === expected.getTime();
-      } else if ( typeof actual !== 'object' && typeof expected !== 'object' ) {
-        // loosy ==
-        return actual == expected;
-      } else {
-        return this.objEquiv(actual, expected);
-      }
-    },
-    isUndefinedOrNull: function ( value ) {
-      return value === null || typeof value === 'undefined';
-    },
-    isArguments: function ( object ) {
-      return Object.prototype.toString.call(object) == '[object Arguments]';
-    },
-    keys: function ( obj ) {
-      if ( Object.keys )
-        return Object.keys( obj );
-      var keys = [];
-      for ( var i in obj )
-        if ( Object.prototype.hasOwnProperty.call( obj, i ) )
-          keys.push(i);
-      return keys;
-    },
-    objEquiv: function ( a, b ) {
-      if ( this.isUndefinedOrNull( a ) || this.isUndefinedOrNull( b ) )
-        return false;
-      if ( a.prototype !== b.prototype ) return false;
-      if ( this.isArguments( a ) ) {
-        if ( !this.isArguments( b ) )
-          return false;
-        return eql( pSlice.call( a ) , pSlice.call( b ) );
-      }
-      try {
-        var ka = this.keys( a ), kb = this.keys( b ), key, i;
-        if ( ka.length !== kb.length )
-          return false;
-        ka.sort();
-        kb.sort();
-        for ( i = ka.length - 1; i >= 0; i-- )
-          if ( ka[ i ] != kb[ i ] )
-            return false;
-        for ( i = ka.length - 1; i >= 0; i-- ) {
-          key = ka[i];
-          if ( !this.eql( a[ key ], b[ key ] ) )
-             return false;
-        }
-        return true;
-      } catch ( e ) {
-        return false;
-      }
-    }
+  var _isPlainObject = function ( obj ) {
+    return typeof obj === 'object' && Object.getPrototypeOf( obj ) === Object.prototype;
   };
-  // AMD Compliance
-  if ( "function" === typeof define && define.amd ) {
-    define( 'validator', [],function() { return exports; } );
+  var _isString = function (str ) {
+    return Object.prototype.toString.call( str ) === '[object String]';
+  };
+  // AMD export
+  if ( typeof define === 'function' && define.amd ) {
+    define( 'vendors/validator.js/dist/validator',[],function() {
+      return exports;
+    } );
+  // commonjs export
+  } else if ( typeof module !== 'undefined' && module.exports ) {
+    module.exports = exports;
+  // browser
+  } else {
+    window[ 'undefined' !== typeof validatorjs_ns ? validatorjs_ns : 'Validator' ] = exports;
   }
-} )( 'undefined' === typeof exports ? this[ 'undefined' !== typeof validatorjs_ns ? validatorjs_ns : 'Validator' ] = {} : exports );
-
+} )( );
 
   var ParsleyValidator = function (validators, catalog) {
     this.__class__ = 'ParsleyValidator';
@@ -973,10 +981,16 @@
     getErrorMessage: function (constraint) {
       var message;
       // Type constraints are a bit different, we have to match their requirements too to find right error message
-      if ('type' === constraint.name)
+      if ('type' === constraint.name){
         message = this.catalog[this.locale][constraint.name][constraint.requirements];
-      else
-        message = this.formatMesssage(this.catalog[this.locale][constraint.name], constraint.requirements);
+      } else {
+        message = this.catalog[this.locale][constraint.name];
+        if(message !== ParsleyUtils.noMessage){
+            message = this.formatMesssage(this.catalog[this.locale][constraint.name], constraint.requirements);
+        }else{
+            message = null;
+        }
+      }
       return '' !== message ? message : this.catalog[this.locale].defaultMessage;
     },
     // Kind of light `sprintf()` implementation
@@ -1687,6 +1701,9 @@
         // if constraint already exist, delete it and push new version
         if ('undefined' !== this.constraintsByName[constraint.name])
           this.removeConstraint(constraint.name);
+        if(constraint.domElement && this.$element){
+          constraint.domElement(this.$element);
+        }
         this.constraints.push(constraint);
         this.constraintsByName[constraint.name] = constraint;
       }
