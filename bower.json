@@ -16,7 +16,7 @@
   ],
   "devDependencies": {
     "jquery": "~1.10.0",
-    "validator.js": "https://github.com/giscloud/validator.js.git",
+    "validator.js": "https://github.com/giscloud/validator.js.git#1.2.4",
     "requirejs": "~2.1.0",
     "bootstrap": "~3.0.3",
     "sinonjs": "~1.7.3",
