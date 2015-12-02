@@ -255,7 +255,7 @@ window.ParsleyConfig.validators.remote = {
 /*!
 * Parsleyjs
 * Guillaume Potier - <guillaume@wisembly.com>
-* Version 2.0.0-rc5 - built Wed Dec 02 2015 10:55:29
+* Version 2.0.0-rc5 - built Wed Dec 02 2015 12:11:32
 * MIT Licensed
 *
 */
@@ -1309,7 +1309,7 @@ window.ParsleyConfig.validators.remote = {
         return $.extend(new Validator.Assert().Length({ min: value }), {
           priority: 30,
           requirementsTransformer: function () {
-            return 'string' === typeof value && !isNaN(value) ? parseInt(value, 10) : value;
+            return 'string' === typeof value && !isNaN(value) ? parseFloat(value) : value;
           }
         });
       },
@@ -1317,7 +1317,7 @@ window.ParsleyConfig.validators.remote = {
         return $.extend(new Validator.Assert().Length({ max: value }), {
         priority: 30,
         requirementsTransformer: function () {
-            return 'string' === typeof value && !isNaN(value) ? parseInt(value, 10) : value;
+            return 'string' === typeof value && !isNaN(value) ? parseFloat(value) : value;
           }
       });
       },
@@ -1337,7 +1337,7 @@ window.ParsleyConfig.validators.remote = {
         return $.extend(new Validator.Assert().GreaterThanOrEqual(value), {
           priority: 30,
           requirementsTransformer: function () {
-            return 'string' === typeof value && !isNaN(value) ? parseInt(value, 10) : value;
+            return 'string' === typeof value && !isNaN(value) ? parseFloat(value) : value;
           }
         });
       },
@@ -1345,7 +1345,7 @@ window.ParsleyConfig.validators.remote = {
         return $.extend(new Validator.Assert().LessThanOrEqual(value), {
           priority: 30,
           requirementsTransformer: function () {
-            return 'string' === typeof value && !isNaN(value) ? parseInt(value, 10) : value;
+            return 'string' === typeof value && !isNaN(value) ? parseFloat(value) : value;
           }
         });
       },
@@ -1354,7 +1354,7 @@ window.ParsleyConfig.validators.remote = {
           priority: 32,
           requirementsTransformer: function () {
             for (var i = 0; i < array.length; i++)
-              array[i] = 'string' === typeof array[i] && !isNaN(array[i]) ? parseInt(array[i], 10) : array[i];
+              array[i] = 'string' === typeof array[i] && !isNaN(array[i]) ? parseFloat(array[i]) : array[i];
             return array;
           }
         });
