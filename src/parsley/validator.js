@@ -165,7 +165,7 @@ define('parsley/validator', [
         return $.extend(new Validator.Assert().Length({ min: value }), {
           priority: 30,
           requirementsTransformer: function () {
-            return 'string' === typeof value && !isNaN(value) ? parseInt(value, 10) : value;
+            return 'string' === typeof value && !isNaN(value) ? parseFloat(value) : value;
           }
         });
       },
@@ -173,7 +173,7 @@ define('parsley/validator', [
         return $.extend(new Validator.Assert().Length({ max: value }), {
         priority: 30,
         requirementsTransformer: function () {
-            return 'string' === typeof value && !isNaN(value) ? parseInt(value, 10) : value;
+            return 'string' === typeof value && !isNaN(value) ? parseFloat(value) : value;
           }
       });
       },
@@ -193,7 +193,7 @@ define('parsley/validator', [
         return $.extend(new Validator.Assert().GreaterThanOrEqual(value), {
           priority: 30,
           requirementsTransformer: function () {
-            return 'string' === typeof value && !isNaN(value) ? parseInt(value, 10) : value;
+            return 'string' === typeof value && !isNaN(value) ? parseFloat(value) : value;
           }
         });
       },
@@ -201,7 +201,7 @@ define('parsley/validator', [
         return $.extend(new Validator.Assert().LessThanOrEqual(value), {
           priority: 30,
           requirementsTransformer: function () {
-            return 'string' === typeof value && !isNaN(value) ? parseInt(value, 10) : value;
+            return 'string' === typeof value && !isNaN(value) ? parseFloat(value) : value;
           }
         });
       },
@@ -210,7 +210,7 @@ define('parsley/validator', [
           priority: 32,
           requirementsTransformer: function () {
             for (var i = 0; i < array.length; i++)
-              array[i] = 'string' === typeof array[i] && !isNaN(array[i]) ? parseInt(array[i], 10) : array[i];
+              array[i] = 'string' === typeof array[i] && !isNaN(array[i]) ? parseFloat(array[i]) : array[i];
 
             return array;
           }
