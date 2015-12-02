@@ -1,6 +1,7 @@
 define('parsley/validator', [
   'validator'
 ], function (Validator) {
+
   var ParsleyValidator = function (validators, catalog) {
     this.__class__ = 'ParsleyValidator';
     this.Validator = Validator;
@@ -79,10 +80,18 @@ define('parsley/validator', [
       var message;
 
       // Type constraints are a bit different, we have to match their requirements too to find right error message
-      if ('type' === constraint.name)
+      if ('type' === constraint.name){
         message = this.catalog[this.locale][constraint.name][constraint.requirements];
-      else
-        message = this.formatMesssage(this.catalog[this.locale][constraint.name], constraint.requirements);
+      } else {
+        message = this.catalog[this.locale][constraint.name];
+
+        if(message !== ParsleyUtils.noMessage){
+            message = this.formatMesssage(this.catalog[this.locale][constraint.name], constraint.requirements);
+        }else{
+            message = null;
+        }
+
+      }
 
       return '' !== message ? message : this.catalog[this.locale].defaultMessage;
     },

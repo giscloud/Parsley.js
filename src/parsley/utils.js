@@ -90,6 +90,8 @@ define('parsley/utils', function () {
         .replace(/([a-z\d])([A-Z])/g, '$1_$2')
         .replace(/_/g, '-')
         .toLowerCase();
-    }
+    },
+
+    noMessage: "NO_MESSAGE"
   };
 });
